@@ -32,7 +32,7 @@ ACCIDENT_OPD.*,
 GROUP_CONCAT(COALESCE(diagnosis_ipd.DIAGCODE, '') SEPARATOR ' ') AS IPD_CODE,
 CONCAT( ACCIDENT_OPD.OPD_CODE , " " , GROUP_CONCAT( COALESCE(diagnosis_ipd.DIAGCODE, '') SEPARATOR ' ')) AS ALLCODE
 FROM
-(		SELECT Accident_Pateint.* ,
+(		SELECT Accident_Patient.* ,
 		GROUP_CONCAT( COALESCE(diagnosis_opd.DIAGCODE, '') SEPARATOR ' ') AS OPD_CODE
 		FROM (
 					Select
@@ -104,8 +104,8 @@ FROM
 		Accident_Patient.HOSPCODE = diagnosis_opd.HOSPCODE
 		GROUP BY Accident_Patient.PID, Accident_Patient.HOSPCODE
 ) AS ACCIDENT_OPD
-LEFT JOIN diagnosis_ipd ON A
-CCIDENT_OPD.PID = diagnosis_ipd.PID AND
+LEFT JOIN diagnosis_ipd ON
+ACCIDENT_OPD.PID = diagnosis_ipd.PID AND
 ACCIDENT_OPD.HOSPCODE = diagnosis_ipd.HOSPCODE
 GROUP BY ACCIDENT_OPD.PID, ACCIDENT_OPD.HOSPCODE
 )AS ACCIDENT_ALL_CODE
