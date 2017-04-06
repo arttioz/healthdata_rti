@@ -1,0 +1,114 @@
+Select ACCIDENT_ALL_CODE.*,
+ IF ( INSTR(OPD_CODE,  "S0" ) > 0, 1 ,0 ) AS S0,
+ IF ( INSTR(OPD_CODE,  "S1" ) > 0, 1 ,0 ) AS S1,
+ IF ( INSTR(OPD_CODE,  "S2" ) > 0, 1 ,0 ) AS S2,
+ IF ( INSTR(OPD_CODE,  "S3" ) > 0, 1 ,0 ) AS S3,
+ IF ( INSTR(OPD_CODE,  "S4" ) > 0, 1 ,0 ) AS S4,
+ IF ( INSTR(OPD_CODE,  "S5" ) > 0, 1 ,0 ) AS S5,
+ IF ( INSTR(OPD_CODE,  "S6" ) > 0, 1 ,0 ) AS S6,
+ IF ( INSTR(OPD_CODE,  "S7" ) > 0, 1 ,0 ) AS S7,
+ IF ( INSTR(OPD_CODE,  "S8" ) > 0, 1 ,0 ) AS S8,
+ IF ( INSTR(OPD_CODE,  "S9" ) > 0, 1 ,0 ) AS S9,
+accident.AEPLACE,
+accident.AETYPE,
+accident.AIRWAY,
+accident.ALCOHOL,
+accident.APLINT,
+accident.BELT,
+accident.HELMET,
+accident.COMA_EYE,
+accident.COMA_MOVEMENT,
+accident.COMA_SPEAK,
+accident.NACROTIC_DRUG,
+accident.STOPBLEED,
+accident.TRAFFIC,
+accident.TYPEIN_AE,
+accident.URGENCY,
+accident.VEHICLE
+FROM
+(
+Select
+ACCIDENT_OPD.*,
+GROUP_CONCAT(COALESCE(diagnosis_ipd.DIAGCODE, '') SEPARATOR ' ') AS IPD_CODE,
+CONCAT( ACCIDENT_OPD.OPD_CODE , " " , GROUP_CONCAT( COALESCE(diagnosis_ipd.DIAGCODE, '') SEPARATOR ' ')) AS ALLCODE
+FROM
+(		SELECT Accident_Pateint.* ,
+		GROUP_CONCAT( COALESCE(diagnosis_opd.DIAGCODE, '') SEPARATOR ' ') AS OPD_CODE
+		FROM (
+					Select
+                        AccidentPID.PID,
+                        AccidentPID.HOSPCODE,
+                        AccidentPID.DATE_SERV,
+                        DIAGCODE ,
+                        IF(  ISDEATH = 1 OR char_length ( death.CDEATH) > 0 ,1,0  ) as ISDEATH ,
+                        death.CDEATH,
+                        SUM(AccidentPID.PRICE) as Price,
+                        SUM(AccidentPID.PAYPRICE) as PAYPRICE,
+                        SUM(AccidentPID.ACTUALPAY) as ACTUALPAY,
+                        SUM(AccidentPID.DATEINHOSP) AS DATEINHOSP,
+                        person.CID,
+                        person.`NAME`,
+                        person.LNAME,
+                        person.sex,
+                        person.NATION,
+                        person.BIRTH ,
+                        floor(datediff (DATE_SERV,BIRTH)/365) as AGE
+					FROM
+					(
+                        SELECT
+                            diagnosis_opd.PID,
+                            diagnosis_opd.HOSPCODE,
+                            diagnosis_opd.DIAGCODE ,
+                            diagnosis_opd.DATE_SERV,
+                            SUM(service.PRICE) as Price,
+                            SUM(service.PAYPRICE) as PAYPRICE,
+                            SUM(service.ACTUALPAY) as ACTUALPAY,
+                            IF(  service.TYPEOUT = 4 OR service.TYPEOUT = 5 OR service.TYPEOUT = 6,1,0  ) as ISDEATH, 0 AS DATEINHOSP
+                        FROM
+                            diagnosis_opd,service
+                        WHERE
+                            ( (diagnosis_opd.DATE_SERV >= '2017-01-01') and (diagnosis_opd.DATE_SERV <= '2017-01-31' )  ) AND
+                            diagnosis_opd.DIAGCODE BETWEEN "V0" and "V899" AND
+                            diagnosis_opd.PID = service.PID AND
+                            diagnosis_opd.HOSPCODE = service.HOSPCODE
+                        GROUP BY diagnosis_opd.PID,diagnosis_opd.HOSPCODE
+                        UNION
+                        SELECT
+                            diagnosis_ipd.PID,
+                            diagnosis_ipd.HOSPCODE ,
+                            diagnosis_ipd.DIAGCODE ,
+                            diagnosis_ipd.DATETIME_ADMIT AS DATE_SERV ,
+                            SUM(admission.PRICE) as Price,
+                            SUM(admission.PAYPRICE) as PAYPRICE,
+                            SUM(admission.ACTUALPAY) as ACTUALPAY,
+                            if( admission.DISCHSTATUS = 9,1,0  ) as ISDEATH, DATEDIFF(admission.DATETIME_DISCH ,admission.DATETIME_ADMIT) as DATEINHOSP
+                        FROM
+                            diagnosis_ipd, admission
+                        WHERE
+                            ( (diagnosis_ipd.DATETIME_ADMIT >= '2017-01-01') and (diagnosis_ipd.DATETIME_ADMIT <= '2017-01-31' )  ) AND
+                            diagnosis_ipd.DIAGCODE BETWEEN "V0" and "V899" AND
+                            diagnosis_ipd.PID = admission.PID AND
+                            diagnosis_ipd.HOSPCODE = admission.HOSPCODE
+					GROUP BY diagnosis_ipd.PID,diagnosis_ipd.HOSPCODE
+					) as AccidentPID
+					LEFT JOIN person On
+					AccidentPID.PID = person.pid AND
+					AccidentPID.HOSPCODE = person.HOSPCODE
+					LEFT JOIN death On
+					AccidentPID.PID = death.pid AND
+					AccidentPID.HOSPCODE = death.HOSPCODE
+					GROUP BY AccidentPID.PID,AccidentPID.HOSPCODE
+		) AS Accident_Patient
+		LEFT JOIN diagnosis_opd ON
+		Accident_Patient.PID = diagnosis_opd.PID AND
+		Accident_Patient.HOSPCODE = diagnosis_opd.HOSPCODE
+		GROUP BY Accident_Patient.PID, Accident_Patient.HOSPCODE
+) AS ACCIDENT_OPD
+LEFT JOIN diagnosis_ipd ON A
+CCIDENT_OPD.PID = diagnosis_ipd.PID AND
+ACCIDENT_OPD.HOSPCODE = diagnosis_ipd.HOSPCODE
+GROUP BY ACCIDENT_OPD.PID, ACCIDENT_OPD.HOSPCODE
+)AS ACCIDENT_ALL_CODE
+LEFT JOIN accident ON
+ACCIDENT_ALL_CODE.PID = accident.PID AND
+ACCIDENT_ALL_CODE.HOSPCODE = accident.HOSPCODE
